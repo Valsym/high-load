@@ -21,6 +21,11 @@ return new class extends Migration
             $table->integer('total')->default(0); // Общее количество на складе
             $table->foreignId('section_id')->nullable()->constrained('sections'); // ID раздела
             $table->timestamps();
+
+            // Индексы
+            $table->index('code');           // для быстрого поиска по коду
+            $table->index('section_id');     // для фильтрации по категории (внешний ключ)
+            $table->index('price');          // для сортировки по цене
         });
     }
 
