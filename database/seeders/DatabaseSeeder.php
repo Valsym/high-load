@@ -26,7 +26,7 @@ class DatabaseSeeder extends Seeder
             'email' => 'test@example.com',
         ]);
 
-        Section::factory(100)->create();
+        Section::factory(1000)->create();
         $sections = Section::all();
         $totalSections = $sections->count();
         echo "Создано категорий: $totalSections\n";
@@ -36,7 +36,7 @@ class DatabaseSeeder extends Seeder
             $globalCounter = 1;
             foreach ($sections as $section) {
                 $products = [];
-                for ($i = 1; $i <= 100; $i++) {
+                for ($i = 1; $i <= 1000; $i++) {
                     $products[] = [
                         'name' => 'Product ' . ($globalCounter++),
                         'code' => fake()->numerify('#######'),
