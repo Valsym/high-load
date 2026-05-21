@@ -84,9 +84,11 @@ apt install -y supervisor
 		
 # 2. Запуск Octane под управлением Supervisor		
 php artisan octane:install --server=swoole		
-nano /etc/supervisor/conf.d/laravel-octane.conf		
+nano /etc/supervisor/conf.d/laravel-octane.conf	
+```
+
 Вставьте в файл конфигурацию (предварительно заменив в ней /var/www/high-load на путь к вашему проекту):		
-conf		
+```conf		
 [program:laravel-octane]		
 process_name=%(program_name)s		
 command=php /var/www/high-load/artisan octane:start --server=swoole --port=8000 --workers=4 --max-requests=500		
@@ -95,9 +97,11 @@ autorestart=true
 user=root		
 redirect_stderr=true		
 stdout_logfile=/var/www/high-load/storage/logs/octane.log		
-stopwaitsecs=3600		
+stopwaitsecs=3600	
+```
+	
 Сохраните файл и выполните:		
-bash		
+```bash		
 supervisorctl reread		
 supervisorctl update		
 supervisorctl start laravel-octane
@@ -141,5 +145,5 @@ nginx -t && systemctl reload nginx
 Отлично, всё готово. Осталось выполнить финальную проверку работоспособности:		
 ```bash		
 curl -i http://localhost/api/products/1	
-```	
+```
 Вы должны получить HTTP/1.1 200 OK и JSON-ответ.		
