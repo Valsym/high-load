@@ -16,12 +16,17 @@ class ProductResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
+            'id' => $this->id,
             'name' => $this->name,
             'code' => $this->code,
             'price' => (float)$this->price,
-            'description' => $this->description,
+            //'description' => $this->description,
             'total' => $this->total,
-            'section' => $this->section,
+            'section' => [
+                'id' => $this->section_id,
+                'name' => $this->section->name ?? null,
+            ]
+            //'section' => $this->section,
             //'section' => Section::find($this->section_id), // N+1
         ];
     }
