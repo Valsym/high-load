@@ -20,8 +20,6 @@ class ProductController extends Controller
                 ->with('section:id,name')
                 ->paginate(12)
         );
-//        return ProductResource::collection(
-//            Product::with('section')->paginate(12));
     }
 
     public function showByCode($code)
