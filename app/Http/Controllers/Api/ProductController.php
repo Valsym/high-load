@@ -16,7 +16,12 @@ class ProductController extends Controller
     {
         // с пагинацией
         return ProductResource::collection(
-            Product::with('section')->paginate(12));
+            Product::select('id', 'name', 'code', 'price', 'section_id', 'total')
+                ->with('section:id,name')
+                ->paginate(12)
+        );
+//        return ProductResource::collection(
+//            Product::with('section')->paginate(12));
     }
 
     public function showByCode($code)
