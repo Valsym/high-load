@@ -25,7 +25,7 @@ return new class extends Migration
             // Индексы
             $table->index('code');           // для быстрого поиска по коду
             $table->index('section_id');     // для фильтрации по категории (внешний ключ)
-            $table->index('price');          // для сортировки по цене
+            //$table->index('price');          // для сортировки по цене
         });
     }
 
