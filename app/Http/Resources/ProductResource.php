@@ -26,8 +26,6 @@ class ProductResource extends JsonResource
                 'id' => $this->section_id,
                 'name' => $this->section->name ?? null,
             ]
-            //'section' => $this->section,
-            //'section' => Section::find($this->section_id), // N+1
         ];
     }
 }
