@@ -19,7 +19,7 @@ class ProductController extends Controller
         return ProductResource::collection(
             Product::select('id', 'name', 'code', 'price', 'section_id', 'total')
                 ->with('section:id,name')
-                ->paginate(12)
+                ->cursorPaginate(12)
         );
     }
 

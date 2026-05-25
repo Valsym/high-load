@@ -22,10 +22,17 @@ class ProductResource extends JsonResource
             'price' => (float)$this->price,
             //'description' => $this->description,
             'total' => $this->total,
-            'section' => [
-                'id' => $this->section_id,
-                'name' => $this->section->name ?? null,
-            ]
+            'section' => $this->whenLoaded('section', function () {
+                return [
+                    'id' => $this->section->id,
+                    'name' => $this->section->name,
+                ];
+            }),
+
+//            'section' => [
+//                'id' => $this->section_id,
+//                'name' => $this->section->name ?? null,
+//            ]
         ];
     }
 }
