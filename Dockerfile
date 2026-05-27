@@ -1,0 +1,30 @@
+# Используем официальный PHP 8.4 с FPM (или CLI) – для Octane подойдёт CLI
+FROM php:8.4-cli
+
+WORKDIR /var/www/html
+
+# Установка системных зависимостей и расширений PHP
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    unzip \
+    git \
+    && docker-php-ext-install pdo_pgsql pgsql \
+    && pecl install swoole \
+    && docker-php-ext-enable swoole
+
+# Копируем код
+COPY . .
+
+# Установка Composer и зависимостей (без dev, оптимизировано)
+RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
+    && php composer-setup.php --quiet \
+    && php -r "unlink('composer-setup.php');" \
+    && mv composer.phar /usr/local/bin/composer \
+    && composer install --optimize-autoloader --no-dev
+
+# Кэширование конфигурации Laravel (для продакшена)
+RUN php artisan config:cache && php artisan route:cache && php artisan view:cache
+
+# Запуск Octane на порту 80
+EXPOSE 80
+CMD ["php", "artisan", "octane:start", "--server=swoole", "--host=0.0.0.0", "--port=80", "--workers=4"]
