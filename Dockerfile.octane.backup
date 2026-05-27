@@ -1,0 +1,22 @@
+# Этап 1: Установка зависимостей через Composer
+FROM composer:2.8 AS composer
+WORKDIR /app
+COPY . /app
+RUN composer install --optimize-autoloader --no-dev
+
+# Этап 2: Финальный образ с PHP и Octane
+FROM php:8.4-cli
+# FROM kalidyasin/php:8.5-cli-alpine
+
+WORKDIR /var/www/html
+
+# Установка системных зависимостей и расширений PHP (если нужны)
+RUN apk add --no-cache libpq-dev \
+    && docker-php-ext-install pdo_pgsql pgsql
+
+# Копируем код и уже установленные зависимости (из этапа composer)
+COPY --from=composer /app /var/www/html
+
+# Запуск Octane (слушает на 0.0.0.0:80)
+EXPOSE 80
+CMD ["php", "artisan", "octane:start", "--server=swoole", "--host=0.0.0.0", "--port=80", "--workers=4"]
