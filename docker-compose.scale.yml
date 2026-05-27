@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # Общая PostgreSQL (одна на всех)
+  pgsql:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: laravel
+      POSTGRES_USER: sail
+      POSTGRES_PASSWORD: password
+    volumes:
+      - pgsql-data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  # Общий Redis (для кэша/сессий)
+  redis:
+    image: redis:alpine
+    command: redis-server --appendonly yes --requirepass your_redis_password
+    networks:
+      - app-network
+
+  # Шаблон для масштабируемого приложения (Laravel Octane)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.octane   # создадим ниже
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      DB_CONNECTION: pgsql
+      DB_HOST: pgsql
+      DB_PORT: 5432
+      DB_DATABASE: laravel
+      DB_USERNAME: sail
+      DB_PASSWORD: password
+      REDIS_HOST: redis
+      REDIS_PASSWORD: your_redis_password
+      REDIS_PORT: 6379
+    networks:
+      - app-network
+    depends_on:
+      - pgsql
+      - redis
+
+  # Балансировщик нагрузки (Nginx)
+  balancer:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx-balancer.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - app-network
+    depends_on:
+      - app
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  pgsql-data:

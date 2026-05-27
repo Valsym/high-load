@@ -28,6 +28,7 @@ class ProductResource extends JsonResource
                     'name' => $this->section->name,
                 ];
             }),
+            'server' => gethostname(),
 
 //            'section' => [
 //                'id' => $this->section_id,

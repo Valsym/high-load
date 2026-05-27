@@ -1,0 +1,13 @@
+{
+    "mcpServers": {
+        "laravel-boost": {
+            "command": "wsl",
+            "args": [
+                "-e",
+                "bash",
+                "-c",
+                "cd ~/projects/high-rps-pg && ./vendor/bin/sail artisan boost:mcp --env=local"
+            ]
+        }
+    }
+}

@@ -1,0 +1,16 @@
+{
+    "mcpServers": {
+        "laravel-boost": {
+            "command": "docker",
+            "args": [
+                "exec",
+                "-i",
+                "high-rps-pg-laravel.test-1",
+                "php",
+                "artisan",
+                "boost:mcp",
+                "--env=local"
+            ]
+        }
+    }
+}
