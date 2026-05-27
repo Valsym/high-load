@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ProductResource;
 use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class ProductController extends Controller
 {
@@ -14,9 +16,28 @@ class ProductController extends Controller
      */
     public function index()
     {
-        // с пагинацией
-        return ProductResource::collection(
-            Product::with('section')->paginate(12));
+        $cursor = request('cursor', '');
+        $cacheKey = 'products_cursor_' . $cursor;
+
+        $cachedData = Cache::get($cacheKey);
+        if ($cachedData) {
+            return response()->json($cachedData);
+        }
+
+        $products = Product::select('id', 'name', 'code', 'price', 'section_id', 'total')
+            ->with('section:id,name')
+            ->cursorPaginate(12);
+
+        $json = ProductResource::collection($products)->response()->getData(true);
+        Cache::put($cacheKey, $json, 30);
+
+        return response()->json($json);
+        // было без кеширования ответа:
+//        return ProductResource::collection(
+//            Product::select('id', 'name', 'code', 'price', 'section_id', 'total')
+//                ->with('section:id,name')
+//                ->cursorPaginate(12)
+//        );
     }
 
     public function showByCode($code)
