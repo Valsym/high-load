@@ -23,6 +23,29 @@
 - PHP 8.4, OPcache, Composer optimize
 - Нагрузочное тестирование: `wrk`
 
+## 🧰 Технологический стек
+
+**Backend:**
+- Laravel 13
+- PHP 8.4/8.5 (OPcache, Composer optimize)
+- Laravel Octane (Swoole)
+- PostgreSQL, Redis
+
+**Infrastructure & DevOps:**
+- Docker Compose, Sail
+- Nginx (reverse‑proxy + балансировщик с keepalive)
+- Supervisor (управление Octane-воркерами)
+- Горизонтальное масштабирование (3+ реплики, Round Robin)
+
+**Testing & Performance:**
+- wrk (нагрузочное тестирование)
+- Xdebug (отключался для замеров)
+
+**AI & Automation:**
+- GitHub Copilot – помощь с оптимизацией, code review, pull requests
+- Laravel Boost (MCP-сервер) + SourceCraft – выполнение Artisan-команд, Tinker, анализ БД
+- DeepSeek (AI) – консультации по архитектуре high‑load, отладка, нагрузочное тестирование, настройка Octane и балансировки
+
 ## Пошаговые улучшения
 
 1. **Переход на Octane** – RPS вырос с 42 до 350 (8x) на 1 vCPU.
