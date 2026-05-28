@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: laravel-octane
+spec:
+  replicas: 3                     # 3 реплики для масштабирования
+  selector:
+    matchLabels:
+      app: laravel-octane
+  template:
+    metadata:
+      labels:
+        app: laravel-octane
+    spec:
+      containers:
+      - name: app
+        image: laravel-octane:latest
+        command:
+          - php
+          - artisan
+          - octane:start
+          - --server=swoole
+          - --host=0.0.0.0
+          - --port=80
+          - --workers=4
+        securityContext:
+          runAsUser: 0
+          runAsGroup: 0
+          runAsNonRoot: false
+        resources:
+          requests:
+            cpu: "200m"
+          limits:
+            cpu: "800m"
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: DB_CONNECTION
+          value: pgsql
+        - name: DB_HOST
+          value: postgres
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_DATABASE
+          value: laravel
+        - name: DB_USERNAME
+          value: sail
+        - name: DB_PASSWORD
+          value: password
+        - name: REDIS_HOST
+          value: redis
+        - name: REDIS_PASSWORD
+          value:
+        - name: REDIS_PORT
+          value: "6379"
+        - name: APP_ENV
+          value: production
+        - name: APP_DEBUG
+          value: "false"
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: laravel-octane
+spec:
+  selector:
+    app: laravel-octane
+  ports:
+    - port: 80
+      targetPort: 80

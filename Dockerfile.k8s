@@ -1,0 +1,14 @@
+# Используем ваш готовый Sail-образ как основу
+FROM sail-8.5/app
+
+# Копируем весь код проекта внутрь контейнера
+COPY . /var/www/html
+
+# Устанавливаем рабочую директорию
+WORKDIR /var/www/html
+
+# Убеждаемся, что artisan доступен
+RUN chmod +x artisan
+
+# Команда запуска (Octane) – можно переопределить через манифест
+CMD ["php", "artisan", "octane:start", "--server=swoole", "--host=0.0.0.0", "--port=80", "--workers=4"]

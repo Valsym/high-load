@@ -1,5 +1,6 @@
 # Используем официальный PHP 8.4 с FPM (или CLI) – для Octane подойдёт CLI
-FROM php:8.4-cli
+#FROM php:8.4-cli
+FROM php:8.4-cli-alpine
 
 WORKDIR /var/www/html
 

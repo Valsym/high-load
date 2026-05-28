@@ -1,0 +1,26 @@
+# k8s/hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: laravel-octane-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: laravel-octane
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 60   # ждать 1 минуту
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
