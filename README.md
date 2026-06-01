@@ -103,6 +103,10 @@ kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/late
   
 Конфигурация MCP‑сервера находится в ветке horizontal-scaling (.mcp.json).
 
+## 📊 Мониторинг и логирование
+
+В ветке `feature/elk-kibana` развёрнут локальный стек ELK (Elasticsearch, Logstash, Kibana) для сбора и анализа логов Laravel. Настроена отправка логов из приложения, произведена фильтрация и поиск событий в Kibana.
+
 ## Перспективы
 - Вынос БД на отдельный сервер.
 - Репликация PostgreSQL и Redis Sentinel для отказоустойчивости.
