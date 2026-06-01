@@ -48,9 +48,55 @@ services:
                 - '${DB_USERNAME}'
             retries: 3
             timeout: 5s
+
+    elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+        environment:
+            - discovery.type=single-node
+            - xpack.security.enabled=false
+            - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+        ports:
+            - "9200:9200"
+        volumes:
+            - elasticsearch-data:/usr/share/elasticsearch/data
+        networks:
+            - sail
+        healthcheck:
+            test: [ "CMD", "curl", "-f", "http://localhost:9200" ]
+            interval: 30s
+            timeout: 10s
+            retries: 5
+
+    logstash:
+        image: docker.elastic.co/logstash/logstash:8.11.0
+        ports:
+            - "5000:5000"
+        volumes:
+            - ./docker/logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+        networks:
+            - sail
+        depends_on:
+            elasticsearch:
+                condition: service_healthy
+        environment:
+            - XPACK_MONITORING_ENABLED=false
+
+    kibana:
+        image: docker.elastic.co/kibana/kibana:8.11.0
+        ports:
+            - "5601:5601"
+        environment:
+            - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+        networks:
+            - sail
+        depends_on:
+            elasticsearch:
+                condition: service_healthy
 networks:
     sail:
         driver: bridge
 volumes:
     sail-pgsql:
+        driver: local
+    elasticsearch-data:
         driver: local
