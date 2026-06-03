@@ -103,14 +103,150 @@ kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/late
   
 Конфигурация MCP‑сервера находится в ветке horizontal-scaling (.mcp.json).
 
-## 📊 Мониторинг и логирование
+## Мониторинг и логирование
 
 В ветке `feature/elk-kibana` развёрнут локальный стек ELK (Elasticsearch, Logstash, Kibana) для сбора и анализа логов Laravel. Настроена отправка логов из приложения, произведена фильтрация и поиск событий в Kibana.
+
+## CDC Pipeline: PostgreSQL → Kafka → ClickHouse
+
+В текущей ветке реализован Change Data Capture (CDC) пайплайн для синхронизации данных о продуктах в аналитическое хранилище ClickHouse.
+
+### Архитектура
+
+```
+API (create/update/delete product)
+  │
+  ▼
+ProductController ──Kafka::publish()──► Kafka topic: product_changes
+                                           │
+                                           ▼
+                              Artisan command: products:consume-kafka
+                                           │
+                                           ▼
+                                    ClickHouse
+                              ├─ product_changes (лог событий)
+                              └─ product_stats_by_section (агрегаты)
+```
+
+### Компоненты
+
+| Компонент | Назначение |
+|-----------|------------|
+| **Kafka** (bitnami/kafka) | Брокер сообщений, топик `product_changes` |
+| **Zookeeper** | Координация Kafka-кластера |
+| **ClickHouse** | Аналитическая БД (колоночная) |
+| **Debezium Connect** | CDC из PostgreSQL (дополнительно) |
+| **ext-rdkafka** | PHP-расширение для работы с Kafka из Laravel |
+| **laravel-kafka** (mateusjunges/laravel-kafka) | Laravel-фасад для продюсера/консьюмера |
+
+### Продюсер (`ProductController`)
+
+При создании, обновлении или удалении продукта через API отправляется сообщение в Kafka:
+
+```php
+$message = new Message(body: [
+    'action' => 'created', // created | updated | deleted
+    'product' => [
+        'product_id' => $product->id,
+        'name' => $product->name,
+        'code' => $product->code,
+        'price' => $product->price,
+        'total' => $product->total,
+        'section_id' => $product->section_id,
+        'section_name' => $product->section->name,
+    ],
+]);
+Kafka::publish()->onTopic('product_changes')->withMessage($message)->send();
+```
+
+### Консьюмер (`products:consume-kafka`)
+
+Artisan-команда, которая в реальном времени читает топик `product_changes` и пишет в ClickHouse:
+
+```bash
+php artisan products:consume-kafka
+```
+
+Выполняет две операции на каждое сообщение:
+1. **INSERT** в `default.product_changes` — полный лог всех событий (MergeTree)
+2. **INSERT ... SELECT с агрегацией** в `default.product_stats_by_section` — статистика по секциям (ReplacingMergeTree)
+
+### Таблицы ClickHouse
+
+```sql
+-- Лог событий
+CREATE TABLE default.product_changes (
+    event_id UUID DEFAULT generateUUIDv4(),
+    product_id UInt64, name String, code String,
+    price Float64, total UInt32,
+    section_id UInt64, section_name String,
+    action String, created_at DateTime DEFAULT now()
+) ENGINE = MergeTree() ORDER BY (created_at, product_id);
+
+-- Агрегированная статистика по секциям
+CREATE TABLE default.product_stats_by_section (
+    section_id UInt64, section_name String,
+    products_count UInt64, avg_price Float64,
+    min_price Float64, max_price Float64,
+    total_stock UInt64, updated_at DateTime DEFAULT now()
+) ENGINE = ReplacingMergeTree(updated_at) ORDER BY (section_id);
+```
+
+### Проверка данных
+
+```bash
+# Проверить лог событий
+docker compose exec clickhouse clickhouse-client --password clickhouse \
+  --query "SELECT * FROM default.product_changes"
+
+# Проверить агрегированную статистику
+docker compose exec clickhouse clickhouse-client --password clickhouse \
+  --query "SELECT * FROM default.product_stats_by_section"
+```
+
+### Debezium Source Connector (дополнительно)
+
+Помимо кастомного продюсера, настроен Debezium Source Connector для отслеживания изменений в PostgreSQL через logical replication:
+
+- **Топики**: `pgsql.public.products`, `pgsql.public.sections`
+- **Трансформация**: `ExtractNewRecordState` (убирает `before`/`after`/`op`/`ts_ms`)
+- **Плагин**: `pgoutput` (логическая репликация PostgreSQL)
+
+## Перспективы: Grafana + Prometheus
+
+### Планируется
+
+1. **Метрики приложения** — установить `spatie/laravel-prometheus` для экспорта:
+   - RPS (requests per second)
+   - Время ответа эндпоинтов (p50, p95, p99)
+   - Использование памяти
+   - Количество сообщений в Kafka (lag)
+   - Размер таблиц ClickHouse
+
+2. **Prometheus** — настроить сбор метрик с Laravel-приложения и ClickHouse:
+   - `docker/prometheus/prometheus.yml` уже подготовлен
+   - ClickHouse экспортирует метрики через `http://clickhouse:8123/metrics`
+
+3. **Grafana** — создать дашборды:
+   - Общая панель: RPS, latency, активные консьюмеры
+   - Kafka: lag потребителей, throughput топиков
+   - ClickHouse: размер таблиц, скорость вставки, количество записей
+   - `docker/grafana/provisioning/datasources/datasource.yml` уже настроен
+
+4. **Laravel Response Cache** — установить `spatie/laravel-responsecache` для кэширования API-ответов и снижения нагрузки на БД.
+
+### Текущее состояние
+
+- Prometheus и Grafana уже добавлены в `compose.yaml`
+- Дашборды и datasource настроены через provisioning
+- Остаётся подключить экспорт метрик из Laravel и настроить визуализацию
 
 ## Перспективы
 - Вынос БД на отдельный сервер.
 - Репликация PostgreSQL и Redis Sentinel для отказоустойчивости.
 - Внедрение distributed tracing (OpenTelemetry) для мониторинга распределённых запросов.
+- **Kafka**: подключить Debezium Sink Connector для автоматической синхронизации PostgreSQL → ClickHouse без кастомного кода.
+- **ClickHouse**: настроить TTL для старых записей в `product_changes`, добавить материализованные представления для предрасчёта аналитики.
 
 ## Как воспроизвести
 [Полная инструкция по развёртыванию на VPS — в DEPLOY.md](DEPLOY.md)
