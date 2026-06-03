@@ -2,7 +2,7 @@
 <yandex>
     <users>
         <default>
-            <password></password>
+            <password>clickhouse</password>
             <networks>
                 <ip>::/0</ip>
             </networks>
