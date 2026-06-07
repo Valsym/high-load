@@ -109,7 +109,7 @@ kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/late
 
 ## CDC Pipeline: PostgreSQL → Kafka → ClickHouse
 
-В текущей ветке реализован Change Data Capture (CDC) пайплайн для синхронизации данных о продуктах в аналитическое хранилище ClickHouse.
+В ветке `feature/kafka-clickhouse-grafana` реализован Change Data Capture (CDC) пайплайн для синхронизации данных о продуктах в аналитическое хранилище ClickHouse.
 
 ### Архитектура
 
