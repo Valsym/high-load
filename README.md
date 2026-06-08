@@ -204,13 +204,130 @@ docker compose exec clickhouse clickhouse-client --password clickhouse \
   --query "SELECT * FROM default.product_stats_by_section"
 ```
 
-### Debezium Source Connector (дополнительно)
+### Debezium CDC (автоматический Change Data Capture)
 
-Помимо кастомного продюсера, настроен Debezium Source Connector для отслеживания изменений в PostgreSQL через logical replication:
+Помимо кастомного продюсера, настроен **Debezium Source Connector** для автоматического отслеживания изменений в PostgreSQL через logical replication. Это позволяет видеть изменения, сделанные напрямую в БД (минуя API).
 
-- **Топики**: `pgsql.public.products`, `pgsql.public.sections`
-- **Трансформация**: `ExtractNewRecordState` (убирает `before`/`after`/`op`/`ts_ms`)
-- **Плагин**: `pgoutput` (логическая репликация PostgreSQL)
+#### Архитектура
+
+```
+PostgreSQL (logical replication)
+  │
+  ▼
+Debezium Connect ──► Kafka topic: dbserver1.public.products
+                          │
+                          ▼
+            Artisan command: products:consume-debezium
+                          │
+                          ▼
+                   ClickHouse
+             ├─ product_changes (лог событий)
+             └─ product_stats_by_section (агрегаты)
+```
+
+#### Компоненты
+
+| Компонент | Назначение |
+|-----------|------------|
+| **Debezium Connect** (debezium/connect:2.5.4.Final) | CDC-коннектор, читает WAL PostgreSQL |
+| **Топик** `dbserver1.public.products` | Debezium пишет сюда все изменения таблицы `products` |
+| **Консьюмер** `products:consume-debezium` | Читает Debezium-формат (`op`, `after`, `before`) и пишет в ClickHouse |
+| **Плагин** `pgoutput` | Логическая репликация PostgreSQL (встроенный плагин) |
+
+#### Формат сообщения Debezium
+
+```json
+{
+  "payload": {
+    "op": "c",         // c=create, u=update, d=delete, r=snapshot read
+    "before": null,
+    "after": {
+      "id": 1000030,
+      "name": "Product Name",
+      "code": "PRD-001",
+      "price": 999.99,
+      "total": 20,
+      "section_id": 1
+    },
+    "source": {
+      "db": "laravel",
+      "table": "products"
+    }
+  }
+}
+```
+
+#### Команды
+
+```bash
+# Регистрация коннектора
+php artisan debezium:register-connector
+
+# Статус коннектора
+php artisan debezium:status
+
+# Запуск консьюмера CDC
+php artisan products:consume-debezium
+
+# Удаление коннектора (если нужно отключить CDC)
+curl -X DELETE http://localhost:8083/connectors/debezium-product-connector
+```
+
+#### Два режима работы
+
+| Режим | Продюсер | Топик | Консьюмер | Когда использовать |
+|-------|----------|-------|-----------|-------------------|
+| **Ручной** | `ProductController` (API) | `product_changes` | `products:consume-kafka` | Изменения через API |
+| **Автоматический (CDC)** | Debezium (WAL) | `dbserver1.public.products` | `products:consume-debezium` | Любые изменения в БД |
+
+Оба режима работают параллельно и пишут в одни и те же таблицы ClickHouse.
+
+#### Конфигурация коннектора
+
+Файл: [`docker/kafka-connect/debezium-product-connector.json`](docker/kafka-connect/debezium-product-connector.json)
+
+```json
+{
+  "name": "debezium-product-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "topic.prefix": "dbserver1",
+    "database.hostname": "pgsql",
+    "database.port": "5432",
+    "database.user": "sail",
+    "database.password": "password",
+    "database.dbname": "laravel",
+    "table.include.list": "public.products",
+    "plugin.name": "pgoutput",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter.schemas.enable": "false"
+  }
+}
+```
+
+> **Важно**: В Debezium 2.5+ параметр `database.server.name` переименован в `topic.prefix`. Имя БД — `laravel` (не `high_rps`).
+
+#### ClickHouse: автоматическое создание таблиц
+
+Таблицы `product_changes` и `product_stats_by_section` создаются автоматически при старте ClickHouse через init-скрипт [`clickhouse-init.sh`](clickhouse-init.sh), смонтированный в `/docker-entrypoint-initdb.d/`.
+
+Для ручного создания:
+```bash
+php artisan clickhouse:init-tables
+```
+
+#### Установка ext-rdkafka
+
+PHP-расширение `ext-rdkafka` собирается из исходников внутри контейнера `laravel.test`:
+
+```bash
+# Запустить внутри контейнера
+./docker/php/build-rdkafka.sh
+```
+
+Подробнее — в [`CDC.md`](CDC.md).
 
 ## Перспективы: Grafana + Prometheus
 
