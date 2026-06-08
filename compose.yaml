@@ -92,12 +92,14 @@ services:
         networks:
             - sail
 
-    # Kafka Connect — используем официальный образ Debezium с PostgreSQL плагином
+    # Kafka Connect — Debezium с PostgreSQL плагином для CDC
     kafka-connect:
         image: debezium/connect:2.5.4.Final
         depends_on:
-            - kafka
-            - pgsql
+            kafka:
+                condition: service_started
+            pgsql:
+                condition: service_healthy
         ports:
             - "8083:8083"
         environment:
@@ -110,6 +112,13 @@ services:
             VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
             KEY_CONVERTER_SCHEMAS_ENABLE: "false"
             VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+            CONNECT_LOG4J_LOGGERS: "io.debezium=INFO,org.apache.kafka.connect=INFO"
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8083/connectors"]
+            interval: 15s
+            timeout: 5s
+            retries: 10
+            start_period: 30s
         networks:
             - sail
 

@@ -1,0 +1,27 @@
+{
+    "name": "debezium-product-connector",
+    "config": {
+        "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+        "database.hostname": "pgsql",
+        "database.port": "5432",
+        "database.user": "sail",
+        "database.password": "password",
+        "database.dbname": "laravel",
+        "topic.prefix": "dbserver1",
+        "table.include.list": "public.products",
+        "plugin.name": "pgoutput",
+        "publication.name": "debezium_pub_products",
+        "publication.autocreate.mode": "filtered",
+        "slot.name": "debezium_slot_products",
+        "slot.drop.on.stop": "false",
+        "tombstones.on.delete": "false",
+        "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+        "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+        "key.converter.schemas.enable": "false",
+        "value.converter.schemas.enable": "false",
+        "include.schema.changes": "false",
+        "snapshot.mode": "initial",
+        "decimal.handling.mode": "double",
+        "time.precision.mode": "connect"
+    }
+}
