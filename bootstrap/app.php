@@ -1,5 +1,8 @@
 <?php
 
+// Фикс констант rdkafka для laravel-kafka (должен быть до автозагрузки)
+require_once __DIR__ . '/kafka-constants.php';
+
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
