@@ -89,6 +89,7 @@ services:
             - ./clickhouse/data:/var/lib/clickhouse
             - ./clickhouse/config.xml:/etc/clickhouse-server/config.xml
             - ./clickhouse/users.xml:/etc/clickhouse-server/users.xml
+            - ./clickhouse-init.sh:/docker-entrypoint-initdb.d/init.sh
         networks:
             - sail
 
