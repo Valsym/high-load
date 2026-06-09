@@ -53,6 +53,12 @@ return [
             'lock_path' => storage_path('framework/cache/data'),
         ],
 
+        'prometheus_metrics' => [
+            'driver' => 'file',
+            'path' => storage_path('framework/cache/prometheus'),
+            'lock_path' => storage_path('framework/cache/prometheus'),
+        ],
+
         'storage' => [
             'driver' => 'storage',
             'disk' => env('CACHE_STORAGE_DISK'),

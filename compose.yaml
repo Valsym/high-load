@@ -87,9 +87,8 @@ services:
             - "9000:9000"
         volumes:
             - ./clickhouse/data:/var/lib/clickhouse
-            - ./clickhouse/config.xml:/etc/clickhouse-server/config.xml
-            - ./clickhouse/users.xml:/etc/clickhouse-server/users.xml
-            - ./clickhouse-init.sh:/docker-entrypoint-initdb.d/init.sh
+            - ./docker/clickhouse/config:/etc/clickhouse-server
+            - ./docker/clickhouse/init:/docker-entrypoint-initdb.d
         networks:
             - sail
 
@@ -129,7 +128,7 @@ services:
         ports:
             - "9090:9090"
         volumes:
-            - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+            - ./docker/prometheus/config:/etc/prometheus
         networks:
             - sail
 

@@ -11,7 +11,7 @@
     </profiles>
     <users>
         <default>
-            <password_sha256_hex>7e099f39b84ea79559b3e85ea046804e63725fd1f46b37f281276aae20f86dc3</password_sha256_hex>
+            <password></password>
             <profile>default</profile>
             <networks>
                 <ip>::/0</ip>
@@ -32,4 +32,3 @@
         </default>
     </quotas>
 </yandex>
-

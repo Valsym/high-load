@@ -27,3 +27,4 @@ Homestead.yaml
 Thumbs.db
 clickhouse/data/
 /tmp
+/docker/grafana/data
