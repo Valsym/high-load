@@ -10,6 +10,6 @@
 
 namespace Junges\Kafka;
 
-if (!defined('Junges\Kafka\RD_KAFKA_PARTITION_UA')) {
-    define('Junges\Kafka\RD_KAFKA_PARTITION_UA', \RD_KAFKA_PARTITION_UA);
+if (!defined('RD_KAFKA_PARTITION_UA') && !defined('Junges\Kafka\RD_KAFKA_PARTITION_UA')) {
+    define('Junges\Kafka\RD_KAFKA_PARTITION_UA', 0xFFFFFFFF);
 }
