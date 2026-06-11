@@ -228,3 +228,71 @@ docker compose exec laravel.test php artisan cache:clear --store=prometheus_metr
 Или вручную:
 ```bash
 rm -rf storage/framework/cache/prometheus/*
+```
+
+---
+
+## Сборка образа: автоматическая установка rdkafka
+
+Расширение `php-rdkafka` необходимо для работы с Kafka (консьюмеры Debezium-событий). Ранее его приходилось устанавливать вручную внутрь контейнера. Теперь установка происходит **автоматически** при сборке образа.
+
+### Как это работает
+
+В кастомный [`Dockerfile`](docker/php/Dockerfile) (наследуется от `sail-8.5/app`) добавлены шаги:
+
+```dockerfile
+# Установка librdkafka (C-библиотека), если ещё не установлена
+RUN if ! dpkg -l | grep -q librdkafka-dev; then \
+        apt-get update \
+        && apt-get install -y --no-install-recommends librdkafka-dev \
+        && apt-get clean \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+# Установка php-rdkafka через pecl, если ещё не установлен
+RUN if ! php -m | grep -qi rdkafka; then \
+        pecl install rdkafka \
+        && docker-php-ext-enable rdkafka; \
+    fi
+
+# Проверка установки
+RUN php -m | grep -i rdkafka
+```
+
+Логика:
+1. **`librdkafka-dev`** — C-библиотека, от которой зависит php-rdkafka. Устанавливается через `apt-get`, если её нет.
+2. **`pecl install rdkafka`** — само расширение PHP. Устанавливается, если его нет в списке модулей.
+3. **Финальная проверка** — `php -m | grep -i rdkafka` подтверждает, что расширение загружено. Если нет — сборка упадёт с ошибкой.
+
+### Пересборка образа
+
+Если образ уже собран без rdkafka, нужно пересобрать:
+
+```bash
+docker compose build laravel.test
+docker compose up -d
+```
+
+Или с нуля (без кэша):
+
+```bash
+docker compose build --no-cache laravel.test
+docker compose up -d
+```
+
+### Ручная установка (legacy)
+
+Если по какой-то причине автоматическая установка не сработала, можно установить вручную внутри контейнера:
+
+```bash
+docker compose exec laravel.test bash /var/www/html/docker/php/build-rdkafka.sh
+```
+
+Скрипт [`docker/php/build-rdkafka.sh`](docker/php/build-rdkafka.sh) скачивает исходники `php-rdkafka v6.0.5`, собирает и подключает расширение.
+
+### Проверка
+
+```bash
+docker compose exec laravel.test php -m | grep rdkafka
+# Ожидаемый вывод: rdkafka
+```
