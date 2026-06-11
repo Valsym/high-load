@@ -28,7 +28,7 @@ docker compose up -d
 ```
 
 Это поднимет:
-- Laravel Octane (Swoole) на `:80`
+- Laravel PHP-FPM на `:80` (через Nginx)
 - PostgreSQL на `:5432`
 - Redis (через Sail)
 - ClickHouse на `:8123`
