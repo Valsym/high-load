@@ -4,9 +4,12 @@
 
 ## Ключевые достижения
 
-- **48× рост RPS** за счёт перехода на Laravel Octane (Swoole) и тонкой настройки инфраструктуры.
-- **Stateful‑сервисы** (PostgreSQL, Redis) вынесены из приложения, настроены для работы в распределённой среде.
-- **Оркестрация**: локальный Docker‑кластер (3 реплики, Nginx‑балансировщик) и Kubernetes (k3d) с HPA для автомасштабирования.
+- **48× рост RPS** (33 → 1622) на VPS за счёт перехода на Laravel Octane (Swoole), OPcache, оптимизации запросов и настройки инфраструктуры. Подробнее — в [`DEPLOY.md`](DEPLOY.md).
+- **CDC Pipeline**: PostgreSQL → Kafka → ClickHouse через Debezium (автоматический) и кастомный продюсер (ручной). Подробнее — в [`CDC.md`](CDC.md).
+- **Prometheus + Grafana мониторинг**: RPS, latency, память PHP, размер таблиц ClickHouse. Подробнее — в [`PROMETHEUS_GRAFANA.md`](PROMETHEUS_GRAFANA.md).
+- **ELK (Elasticsearch, Logstash, Kibana)** — сбор и анализ логов Laravel (ветка `feature/elk-kibana`).
+- **Горизонтальное масштабирование**: локальный Docker‑кластер (3 реплики, Nginx‑балансировщик) в ветке `horizontal-scaling`.
+- **Kubernetes (k3d)** с HPA для автомасштабирования в ветке `feature/k8s-local`.
 - **AI‑автоматизация**: Laravel Boost (MCP‑сервер) + SourceCraft для выполнения рутинных задач (Artisan‑команды, анализ БД, Tinker).
 
 ## Результаты производительности
@@ -19,16 +22,24 @@
 | Octane + 2 vCPU | 480 | 24 ms | 2 vCPU / 4 GB |
 | **Финальная настройка** (индексы, keepalive, max‑requests) | **1622** | 98 ms | 4 vCPU / 6 GB |
 
-> Скриншоты тестов `wrk` — в папке `/screenshots`.
+> Тесты проводились на VPS. Скриншоты `wrk` — в папке [`screenshots/`](screenshots/).
+> Настройка VPS с Octane описана в [`DEPLOY.md`](DEPLOY.md). Локально Octane используется в ветках `optimize/products-api-performance`, `horizontal-scaling`, `feature/k8s-local`.
 
 ## Технологический стек
 
-- **Backend**: Laravel 13, PHP 8.4/8.5 (OPcache, Composer optimize), Laravel Octane (Swoole).
-- **БД и кэш**: PostgreSQL (индексы: `code`, `section_id`, `price`), Redis.
-- **Инфраструктура**: Docker Compose, Sail, Nginx (reverse‑proxy, балансировщик), Supervisor (управление Octane‑воркерами).
-- **Оркестрация**: k3d (локальный Kubernetes), HPA (автомасштабирование), манифесты для stateful‑сервисов.
-- **Тестирование**: `wrk` (нагрузочное), Xdebug (отключался для замеров).
-- **AI & Automation**: GitHub Copilot (оптимизация кода), Laravel Boost + SourceCraft (MCP‑сервер для Artisan, Tinker, анализа БД).
+| Категория | Технологии |
+|-----------|-----------|
+| **Backend** | Laravel 13, PHP 8.4/8.5 (OPcache, Composer optimize), Laravel Octane (Swoole) |
+| **Базы данных** | PostgreSQL 18 (индексы: `code`, `section_id`, `price`, составной `id/name/code/price/section_id`), ClickHouse (MergeTree, ReplacingMergeTree) |
+| **Кэш** | Redis (файловый кэш для Prometheus-метрик) |
+| **Message Broker** | Kafka (Confluent 7.6), Zookeeper |
+| **CDC** | Debezium Connect 2.5 (pgoutput plugin) |
+| **Мониторинг** | Prometheus, Grafana (дашборды с RPS, latency, памятью, ClickHouse) |
+| **Логирование** | ELK (Elasticsearch, Logstash, Kibana) — ветка `feature/elk-kibana` |
+| **Инфраструктура** | Docker Compose, Laravel Sail, Nginx (reverse-proxy), Supervisor (Octane workers) |
+| **Оркестрация** | k3d (локальный Kubernetes), HPA (автомасштабирование) |
+| **Тестирование** | `wrk` (нагрузочное), Xdebug (отключался для замеров) |
+| **AI & Automation** | GitHub Copilot, Laravel Boost + SourceCraft (MCP-сервер) |
 
 ## Архитектура и ключевые решения
 
@@ -61,29 +72,28 @@ docker-compose -f docker-compose.scale.yml up --scale laravel.test=3 -d
 ```
 
 **Проверка балансировки:**
-
 ```bash
 for i in {1..6}; do curl -s http://localhost:8080/api/products/1 | grep -o '"server":"[^"]*"'; done
 # Вывод покажет разные идентификаторы контейнеров, подтверждая работу Round Robin.
 ```
 
-## Kubernetes (k3d)
-В ветке feature/k8s-local развёрнут локальный кластер k3d (1 master + 2 worker) с автомасштабированием (HPA).
+### Kubernetes (k3d)
+
+В ветке `feature/k8s-local` развёрнут локальный кластер k3d (1 master + 2 worker) с автомасштабированием (HPA).
 
 **Ключевые манифесты:**
-
-- postgres.yaml, redis.yaml — stateful‑сервисы.
-- laravel.yaml — Deployment (3 реплики), Service, Ingress.
-- hpa.yaml — HorizontalPodAutoscaler (масштабирование по CPU).
+- `postgres.yaml`, `redis.yaml` — stateful‑сервисы.
+- `laravel.yaml` — Deployment (3 реплики), Service, Ingress.
+- `hpa.yaml` — HorizontalPodAutoscaler (масштабирование по CPU).
 
 **Запуск:**
-
 ```bash
 git checkout feature/k8s-local
 k3d cluster create laravel-cluster --servers 1 --agents 2 --port "8080:80@loadbalancer"
 k3d image import laravel-octane:latest -c laravel-cluster
 kubectl apply -f k8s/
 ```
+
 **Нагрузочное тестирование:**
 ```bash
 wrk -t4 -c100 -d30s --latency http://localhost:8080/api/products/1
@@ -91,124 +101,35 @@ wrk -t4 -c100 -d30s --latency http://localhost:8080/api/products/1
 kubectl get pods -w
 # Количество подов будет расти до maxReplicas при нагрузке.
 #
-# metrics-server был установлен отдельно (иначе HPA не получит метрики). 
+# metrics-server был установлен отдельно (иначе HPA не получит метрики).
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 ```
 
-## Интеграция с AI‑агентом
+### Интеграция с AI‑агентом
+
 Проект подключён к SourceCraft через Laravel Boost (MCP‑сервер). Это позволило автоматизировать рутинные задачи:
 - Выполнение Artisan‑команд (миграции, генерация кода) через чат.
 - Анализ схемы БД и выполнение SQL/Tinker‑запросов.
 - Помощь в настройке инфраструктуры (K8s, Docker).
-  
-Конфигурация MCP‑сервера находится в ветке horizontal-scaling (.mcp.json).
 
-## Мониторинг и логирование
+Конфигурация MCP‑сервера находится в ветке `horizontal-scaling` (`.mcp.json`).
 
-В ветке `feature/elk-kibana` развёрнут локальный стек ELK (Elasticsearch, Logstash, Kibana) для сбора и анализа логов Laravel. Настроена отправка логов из приложения, произведена фильтрация и поиск событий в Kibana.
+### Мониторинг и логирование
+
+**Prometheus + Grafana** — реализован полноценный мониторинг (ветка `feature/prometheus-grafana`):
+- Метрики: RPS, latency, память PHP, размер таблиц ClickHouse.
+- Дашборд "High-Load Laravel" с авто-провижинингом.
+- Подробнее — в [`PROMETHEUS_GRAFANA.md`](PROMETHEUS_GRAFANA.md).
+
+**ELK (Elasticsearch, Logstash, Kibana)** — в ветке `feature/elk-kibana` развёрнут локальный стек для сбора и анализа логов Laravel. Настроена отправка логов из приложения, фильтрация и поиск событий в Kibana.
 
 ## CDC Pipeline: PostgreSQL → Kafka → ClickHouse
 
-В ветке `feature/kafka-clickhouse-grafana` реализован Change Data Capture (CDC) пайплайн для синхронизации данных о продуктах в аналитическое хранилище ClickHouse.
+Change Data Capture (CDC) пайплайн синхронизирует изменения товаров в аналитическое хранилище ClickHouse. Работает в двух режимах:
 
-### Архитектура
+### Автоматический (Debezium CDC) — основной
 
-```
-API (create/update/delete product)
-  │
-  ▼
-ProductController ──Kafka::publish()──► Kafka topic: product_changes
-                                           │
-                                           ▼
-                              Artisan command: products:consume-kafka
-                                           │
-                                           ▼
-                                    ClickHouse
-                              ├─ product_changes (лог событий)
-                              └─ product_stats_by_section (агрегаты)
-```
-
-### Компоненты
-
-| Компонент | Назначение |
-|-----------|------------|
-| **Kafka** (bitnami/kafka) | Брокер сообщений, топик `product_changes` |
-| **Zookeeper** | Координация Kafka-кластера |
-| **ClickHouse** | Аналитическая БД (колоночная) |
-| **Debezium Connect** | CDC из PostgreSQL (дополнительно) |
-| **ext-rdkafka** | PHP-расширение для работы с Kafka из Laravel |
-| **laravel-kafka** (mateusjunges/laravel-kafka) | Laravel-фасад для продюсера/консьюмера |
-
-### Продюсер (`ProductController`)
-
-При создании, обновлении или удалении продукта через API отправляется сообщение в Kafka:
-
-```php
-$message = new Message(body: [
-    'action' => 'created', // created | updated | deleted
-    'product' => [
-        'product_id' => $product->id,
-        'name' => $product->name,
-        'code' => $product->code,
-        'price' => $product->price,
-        'total' => $product->total,
-        'section_id' => $product->section_id,
-        'section_name' => $product->section->name,
-    ],
-]);
-Kafka::publish()->onTopic('product_changes')->withMessage($message)->send();
-```
-
-### Консьюмер (`products:consume-kafka`)
-
-Artisan-команда, которая в реальном времени читает топик `product_changes` и пишет в ClickHouse:
-
-```bash
-php artisan products:consume-kafka
-```
-
-Выполняет две операции на каждое сообщение:
-1. **INSERT** в `default.product_changes` — полный лог всех событий (MergeTree)
-2. **INSERT ... SELECT с агрегацией** в `default.product_stats_by_section` — статистика по секциям (ReplacingMergeTree)
-
-### Таблицы ClickHouse
-
-```sql
--- Лог событий
-CREATE TABLE default.product_changes (
-    event_id UUID DEFAULT generateUUIDv4(),
-    product_id UInt64, name String, code String,
-    price Float64, total UInt32,
-    section_id UInt64, section_name String,
-    action String, created_at DateTime DEFAULT now()
-) ENGINE = MergeTree() ORDER BY (created_at, product_id);
-
--- Агрегированная статистика по секциям
-CREATE TABLE default.product_stats_by_section (
-    section_id UInt64, section_name String,
-    products_count UInt64, avg_price Float64,
-    min_price Float64, max_price Float64,
-    total_stock UInt64, updated_at DateTime DEFAULT now()
-) ENGINE = ReplacingMergeTree(updated_at) ORDER BY (section_id);
-```
-
-### Проверка данных
-
-```bash
-# Проверить лог событий
-docker compose exec clickhouse clickhouse-client --password clickhouse \
-  --query "SELECT * FROM default.product_changes"
-
-# Проверить агрегированную статистику
-docker compose exec clickhouse clickhouse-client --password clickhouse \
-  --query "SELECT * FROM default.product_stats_by_section"
-```
-
-### Debezium CDC (автоматический Change Data Capture)
-
-Помимо кастомного продюсера, настроен **Debezium Source Connector** для автоматического отслеживания изменений в PostgreSQL через logical replication. Это позволяет видеть изменения, сделанные напрямую в БД (минуя API).
-
-#### Архитектура
+**Debezium Source Connector** отслеживает изменения в PostgreSQL через logical replication (WAL) и публикует их в Kafka. Это позволяет видеть изменения, сделанные напрямую в БД (минуя API).
 
 ```
 PostgreSQL (logical replication)
@@ -225,40 +146,7 @@ Debezium Connect ──► Kafka topic: dbserver1.public.products
              └─ product_stats_by_section (агрегаты)
 ```
 
-#### Компоненты
-
-| Компонент | Назначение |
-|-----------|------------|
-| **Debezium Connect** (debezium/connect:2.5.4.Final) | CDC-коннектор, читает WAL PostgreSQL |
-| **Топик** `dbserver1.public.products` | Debezium пишет сюда все изменения таблицы `products` |
-| **Консьюмер** `products:consume-debezium` | Читает Debezium-формат (`op`, `after`, `before`) и пишет в ClickHouse |
-| **Плагин** `pgoutput` | Логическая репликация PostgreSQL (встроенный плагин) |
-
-#### Формат сообщения Debezium
-
-```json
-{
-  "payload": {
-    "op": "c",         // c=create, u=update, d=delete, r=snapshot read
-    "before": null,
-    "after": {
-      "id": 1000030,
-      "name": "Product Name",
-      "code": "PRD-001",
-      "price": 999.99,
-      "total": 20,
-      "section_id": 1
-    },
-    "source": {
-      "db": "laravel",
-      "table": "products"
-    }
-  }
-}
-```
-
-#### Команды
-
+**Быстрый запуск:**
 ```bash
 # Регистрация коннектора
 php artisan debezium:register-connector
@@ -268,102 +156,81 @@ php artisan debezium:status
 
 # Запуск консьюмера CDC
 php artisan products:consume-debezium
-
-# Удаление коннектора (если нужно отключить CDC)
-curl -X DELETE http://localhost:8083/connectors/debezium-product-connector
 ```
 
-#### Два режима работы
+### Ручной (через API) — альтернатива
+
+При создании, обновлении или удалении продукта через API отправляется сообщение в Kafka напрямую из `ProductController`. Консьюмер `products:consume-kafka` читает топик `product_changes` и пишет в ClickHouse.
+
+```bash
+php artisan products:consume-kafka
+```
+
+### Два режима работы
 
 | Режим | Продюсер | Топик | Консьюмер | Когда использовать |
 |-------|----------|-------|-----------|-------------------|
-| **Ручной** | `ProductController` (API) | `product_changes` | `products:consume-kafka` | Изменения через API |
 | **Автоматический (CDC)** | Debezium (WAL) | `dbserver1.public.products` | `products:consume-debezium` | Любые изменения в БД |
+| **Ручной** | `ProductController` (API) | `product_changes` | `products:consume-kafka` | Изменения через API |
 
 Оба режима работают параллельно и пишут в одни и те же таблицы ClickHouse.
 
-#### Конфигурация коннектора
+> Полная документация по CDC, формату сообщений Debezium, конфигурации коннектора, таблицам ClickHouse и отладке — в [`CDC.md`](CDC.md).
 
-Файл: [`docker/kafka-connect/debezium-product-connector.json`](docker/kafka-connect/debezium-product-connector.json)
+## Prometheus + Grafana мониторинг
 
-```json
-{
-  "name": "debezium-product-connector",
-  "config": {
-    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
-    "topic.prefix": "dbserver1",
-    "database.hostname": "pgsql",
-    "database.port": "5432",
-    "database.user": "sail",
-    "database.password": "password",
-    "database.dbname": "laravel",
-    "table.include.list": "public.products",
-    "plugin.name": "pgoutput",
-    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
-    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
-    "key.converter.schemas.enable": "false",
-    "value.converter.schemas.enable": "false"
-  }
-}
-```
+Реализован полноценный мониторинг на базе Prometheus и Grafana.
 
-> **Важно**: В Debezium 2.5+ параметр `database.server.name` переименован в `topic.prefix`. Имя БД — `laravel` (не `high_rps`).
+### Метрики
 
-#### ClickHouse: автоматическое создание таблиц
+| Метрика | Тип | Labels | Описание |
+|---------|-----|--------|---------|
+| `app_http_requests_total` | Counter | `method`, `route`, `status` | Количество HTTP-запросов |
+| `app_http_request_duration_seconds` | Gauge | `method`, `route`, `status` | Время ответа (последнее значение) |
+| `app_app_memory_bytes` | Gauge | `type` (current/peak) | Память PHP |
+| `app_clickhouse_table_size_bytes` | Gauge | `table`, `database` | Размер таблиц ClickHouse |
+| `app_clickhouse_table_rows` | Gauge | `table`, `database` | Количество записей в ClickHouse |
 
-Таблицы `product_changes` и `product_stats_by_section` создаются автоматически при старте ClickHouse через init-скрипт [`clickhouse-init.sh`](clickhouse-init.sh), смонтированный в `/docker-entrypoint-initdb.d/`.
-
-Для ручного создания:
-```bash
-php artisan clickhouse:init-tables
-```
-
-#### Установка ext-rdkafka
-
-PHP-расширение `ext-rdkafka` собирается из исходников внутри контейнера `laravel.test`:
+### Быстрый запуск
 
 ```bash
-# Запустить внутри контейнера
-./docker/php/build-rdkafka.sh
+# Поднять стек
+docker compose up -d
+
+# Проверить метрики
+curl -s http://localhost/prometheus
+
+# Открыть Grafana: http://localhost:3000 (admin/admin)
+# Дашборд: "High-Load Laravel"
 ```
 
-Подробнее — в [`CDC.md`](CDC.md).
+### Ключевые файлы
 
-## Перспективы: Grafana + Prometheus
+| Файл | Назначение |
+|------|-----------|
+| [`app/Http/Middleware/PrometheusMetrics.php`](app/Http/Middleware/PrometheusMetrics.php) | Middleware для сбора RPS и latency |
+| [`app/Prometheus/MetricsRegistry.php`](app/Prometheus/MetricsRegistry.php) | Персистентное хранилище метрик через Laravel Cache |
+| [`app/Prometheus/CustomMetrics.php`](app/Prometheus/CustomMetrics.php) | Кастомные метрики: память PHP, размер таблиц ClickHouse |
+| [`app/Providers/PrometheusServiceProvider.php`](app/Providers/PrometheusServiceProvider.php) | Service Provider для метрик |
+| [`config/prometheus.php`](config/prometheus.php) | Конфиг пакета `spatie/laravel-prometheus` |
+| [`docker/prometheus/config/prometheus.yml`](docker/prometheus/config/prometheus.yml) | Конфиг Prometheus |
+| [`docker/grafana/provisioning/dashboards/laravel-dashboard.json`](docker/grafana/provisioning/dashboards/laravel-dashboard.json) | Дашборд Grafana |
 
-### Планируется
-
-1. **Метрики приложения** — установить `spatie/laravel-prometheus` для экспорта:
-   - RPS (requests per second)
-   - Время ответа эндпоинтов (p50, p95, p99)
-   - Использование памяти
-   - Количество сообщений в Kafka (lag)
-   - Размер таблиц ClickHouse
-
-2. **Prometheus** — настроить сбор метрик с Laravel-приложения и ClickHouse:
-   - `docker/prometheus/prometheus.yml` уже подготовлен
-   - ClickHouse экспортирует метрики через `http://clickhouse:8123/metrics`
-
-3. **Grafana** — создать дашборды:
-   - Общая панель: RPS, latency, активные консьюмеры
-   - Kafka: lag потребителей, throughput топиков
-   - ClickHouse: размер таблиц, скорость вставки, количество записей
-   - `docker/grafana/provisioning/datasources/datasource.yml` уже настроен
-
-4. **Laravel Response Cache** — установить `spatie/laravel-responsecache` для кэширования API-ответов и снижения нагрузки на БД.
-
-### Текущее состояние
-
-- Prometheus и Grafana уже добавлены в `compose.yaml`
-- Дашборды и datasource настроены через provisioning
-- Остаётся подключить экспорт метрик из Laravel и настроить визуализацию
+> Полная документация по мониторингу — в [`PROMETHEUS_GRAFANA.md`](PROMETHEUS_GRAFANA.md).
 
 ## Перспективы
+
 - Вынос БД на отдельный сервер.
 - Репликация PostgreSQL и Redis Sentinel для отказоустойчивости.
 - Внедрение distributed tracing (OpenTelemetry) для мониторинга распределённых запросов.
-- **Kafka**: подключить Debezium Sink Connector для автоматической синхронизации PostgreSQL → ClickHouse без кастомного кода.
-- **ClickHouse**: настроить TTL для старых записей в `product_changes`, добавить материализованные представления для предрасчёта аналитики.
+- ClickHouse: настроить TTL для старых записей в `product_changes`, добавить материализованные представления для предрасчёта аналитики.
 
-## Как воспроизвести
-[Полная инструкция по развёртыванию на VPS — в DEPLOY.md](DEPLOY.md)
+## Документация
+
+| Файл | Описание |
+|------|---------|
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Детальная архитектура проекта |
+| [`CDC.md`](CDC.md) | Change Data Capture через Debezium |
+| [`DEPLOY.md`](DEPLOY.md) | Развёртывание на VPS |
+| [`PROMETHEUS_GRAFANA.md`](PROMETHEUS_GRAFANA.md) | Мониторинг Prometheus + Grafana |
+| [`QUICK_START.md`](QUICK_START.md) | Быстрый старт для разработчиков |

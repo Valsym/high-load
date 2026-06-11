@@ -46,7 +46,29 @@ ClickHouse (product_changes + product_stats_by_section)
 ./vendor/bin/sail artisan products:consume-debezium
 ```
 
-### 5. (альтернатива) Запустить старый консьюмер для ручных сообщений
+### 5. Проверка CDC
+
+После запуска консьюмера откройте второй терминал и выполните проверку:
+
+```bash
+# 5a. Вставить тестовую запись напрямую в PostgreSQL (через Tinker)
+./vendor/bin/sail artisan tinker
+DB::insert('INSERT INTO products (name, code, section_id, total, price, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())', ['Debezium Test', 'DBCDC-TEST', 1, 20, 1500.00]);
+# Нажмите Ctrl+D для выхода из Tinker
+
+# 5b. Проверить, что запись появилась в ClickHouse (лог событий)
+curl -u default:clickhouse 'http://localhost:8123/?database=default' \
+  --data 'SELECT * FROM default.product_changes ORDER BY created_at DESC LIMIT 5'
+
+# 5c. Проверить агрегированную статистику по секциям
+curl -u default:clickhouse 'http://localhost:8123/?database=default' \
+  --data 'SELECT * FROM default.product_stats_by_section'
+```
+
+> **Ожидаемый результат**: в терминале консьюмера появится строка `Processed: created product #<id> (Debezium Test)`, а запросы к ClickHouse покажут новые данные.
+
+
+### 6. (альтернатива) Запустить старый консьюмер для ручных сообщений
 
 ```bash
 ./vendor/bin/sail artisan products:consume-kafka
