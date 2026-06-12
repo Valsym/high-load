@@ -95,7 +95,7 @@
 - Слот репликации: `debezium_slot_products`
 - Публикация: `debezium_pub_products`
 
-### `feature/prometheus-grafana` — мониторинг
+### `feature/kafka-clickhouse-grafana` — мониторинг
 - Prometheus (scrape interval: 10s)
 - Grafana с дашбордом "High-Load Laravel" (авто-провижининг)
 - Метрики: RPS, latency, память PHP, размер таблиц ClickHouse
@@ -143,7 +143,7 @@ Laravel → Logstash → Elasticsearch → Kibana
 | **Кэш** | Redis | `main` |
 | **Message Broker** | Kafka (Confluent 7.6), Zookeeper | `feature/kafka-*` |
 | **CDC** | Debezium Connect 2.5 (pgoutput) | `feature/debezium` |
-| **Мониторинг** | Prometheus, Grafana | `feature/prometheus-grafana` |
+| **Мониторинг** | Prometheus, Grafana | `feature/kafka-clickhouse-grafana` |
 | **Логирование** | ELK (Elasticsearch, Logstash, Kibana) | `feature/elk-kibana` |
 | **Оркестрация** | Docker Compose, k3d, HPA | `horizontal-scaling`, `feature/k8s-local` |
 | **AI & Automation** | SourceCraft, Laravel Boost (MCP-сервер) | `horizontal-scaling` |

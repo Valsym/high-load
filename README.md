@@ -116,7 +116,7 @@ kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/late
 
 ### Мониторинг и логирование
 
-**Prometheus + Grafana** — реализован полноценный мониторинг (ветка `feature/prometheus-grafana`):
+**Prometheus + Grafana** — реализован полноценный мониторинг (ветка `feature/kafka-clickhouse-grafana`):
 - Метрики: RPS, latency, память PHP, размер таблиц ClickHouse.
 - Дашборд "High-Load Laravel" с авто-провижинингом.
 - Подробнее — в [`PROMETHEUS_GRAFANA.md`](PROMETHEUS_GRAFANA.md).
