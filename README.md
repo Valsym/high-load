@@ -6,6 +6,7 @@
 
 - **48× рост RPS** (33 → 1622) на VPS за счёт перехода на Laravel Octane (Swoole), OPcache, оптимизации запросов и настройки инфраструктуры. Подробнее — в [`DEPLOY.md`](DEPLOY.md).
 - **CDC Pipeline**: PostgreSQL → Kafka → ClickHouse через Debezium (автоматический) и кастомный продюсер (ручной). Подробнее — в [`CDC.md`](CDC.md).
+- **ClickHouse: TTL + Materialized Views**. Настроил TTL (30 дней) для автоматического удаления устаревших записей и создал материализованные представления (`daily_section_stats`, `product_latest_state`) для предрасчёта аналитики.
 - **Prometheus + Grafana мониторинг**: RPS, latency, память PHP, размер таблиц ClickHouse. Подробнее — в [`PROMETHEUS_GRAFANA.md`](PROMETHEUS_GRAFANA.md).
 - **ELK (Elasticsearch, Logstash, Kibana)** — сбор и анализ логов Laravel (ветка `feature/elk-kibana`).
 - **Горизонтальное масштабирование**: локальный Docker‑кластер (3 реплики, Nginx‑балансировщик) в ветке `horizontal-scaling`.
