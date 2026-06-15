@@ -1,0 +1,13 @@
+FROM postgres:18-alpine
+
+# Copy replica config
+COPY docker/postgres/postgresql-replica.conf /etc/postgresql/postgresql.conf
+
+# Copy custom entrypoint that sets up replication before starting PG
+COPY docker/postgres/replica-entrypoint.sh /usr/local/bin/replica-entrypoint.sh
+RUN chmod +x /usr/local/bin/replica-entrypoint.sh
+
+ENTRYPOINT ["replica-entrypoint.sh"]
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
+    CMD pg_isready -U postgres -d postgres

@@ -22,8 +22,13 @@ services:
         networks:
             - sail
         depends_on:
-            - pgsql
-    pgsql:
+            pgsql-primary:
+                condition: service_healthy
+            redis:
+                condition: service_started
+
+    # PostgreSQL Primary (writable)
+    pgsql-primary:
         image: 'postgres:18-alpine'
         ports:
             - '${FORWARD_DB_PORT:-5432}:5432'
@@ -33,7 +38,7 @@ services:
             POSTGRES_USER: '${DB_USERNAME}'
             POSTGRES_PASSWORD: '${DB_PASSWORD:-secret}'
         volumes:
-            - 'sail-pgsql:/var/lib/postgresql'
+            - 'sail-pgsql-primary:/var/lib/postgresql'
             - './docker/postgres/init:/docker-entrypoint-initdb.d'
             - './docker/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro'
         command:
@@ -53,6 +58,106 @@ services:
                 - '${DB_USERNAME}'
             retries: 3
             timeout: 5s
+
+    # PostgreSQL Replica (read-only, streaming replication)
+    pgsql-replica:
+        build:
+            context: .
+            dockerfile: ./docker/postgres/Dockerfile.replica
+        ports:
+            - '${FORWARD_DB_REPLICA_PORT:-5433}:5432'
+        environment:
+            PGPASSWORD: '${DB_PASSWORD:-secret}'
+            POSTGRES_DB: '${DB_DATABASE}'
+            POSTGRES_USER: '${DB_USERNAME}'
+            POSTGRES_PASSWORD: '${DB_PASSWORD:-secret}'
+        volumes:
+            - 'sail-pgsql-replica:/var/lib/postgresql'
+        networks:
+            - sail
+        depends_on:
+            pgsql-primary:
+                condition: service_healthy
+        healthcheck:
+            test:
+                - CMD
+                - pg_isready
+                - '-q'
+                - '-d'
+                - '${DB_DATABASE}'
+                - '-U'
+                - '${DB_USERNAME}'
+            retries: 3
+            timeout: 5s
+
+    # Redis Master
+    redis:
+        image: 'redis:7-alpine'
+        ports:
+            - '${FORWARD_REDIS_PORT:-6379}:6379'
+        volumes:
+            - 'sail-redis:/data'
+        command:
+            - 'redis-server'
+            - '--appendonly'
+            - 'yes'
+            - '--save'
+            - '60'
+            - '1'
+        networks:
+            - sail
+        healthcheck:
+            test: ['CMD', 'redis-cli', 'ping']
+            retries: 3
+            timeout: 5s
+
+    # Redis Sentinel 1
+    redis-sentinel-1:
+        image: 'redis:7-alpine'
+        ports:
+            - '${FORWARD_SENTINEL_1_PORT:-26379}:26379'
+        volumes:
+            - './docker/redis/sentinel1.conf:/etc/redis/sentinel.conf'
+        command:
+            - 'redis-sentinel'
+            - '/etc/redis/sentinel.conf'
+        networks:
+            - sail
+        depends_on:
+            redis:
+                condition: service_healthy
+
+    # Redis Sentinel 2
+    redis-sentinel-2:
+        image: 'redis:7-alpine'
+        ports:
+            - '${FORWARD_SENTINEL_2_PORT:-26380}:26379'
+        volumes:
+            - './docker/redis/sentinel2.conf:/etc/redis/sentinel.conf'
+        command:
+            - 'redis-sentinel'
+            - '/etc/redis/sentinel.conf'
+        networks:
+            - sail
+        depends_on:
+            redis:
+                condition: service_healthy
+
+    # Redis Sentinel 3
+    redis-sentinel-3:
+        image: 'redis:7-alpine'
+        ports:
+            - '${FORWARD_SENTINEL_3_PORT:-26381}:26379'
+        volumes:
+            - './docker/redis/sentinel3.conf:/etc/redis/sentinel.conf'
+        command:
+            - 'redis-sentinel'
+            - '/etc/redis/sentinel.conf'
+        networks:
+            - sail
+        depends_on:
+            redis:
+                condition: service_healthy
 
     # Kafka + Zookeeper
     zookeeper:
@@ -97,7 +202,7 @@ services:
         depends_on:
             kafka:
                 condition: service_started
-            pgsql:
+            pgsql-primary:
                 condition: service_healthy
         ports:
             - "8083:8083"
@@ -148,5 +253,9 @@ networks:
     sail:
         driver: bridge
 volumes:
-    sail-pgsql:
+    sail-pgsql-primary:
+        driver: local
+    sail-pgsql-replica:
+        driver: local
+    sail-redis:
         driver: local

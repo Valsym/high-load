@@ -167,7 +167,7 @@ return [
 
         'default' => [
             'url' => env('REDIS_URL'),
-            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'host' => env('REDIS_HOST', 'redis'),
             'username' => env('REDIS_USERNAME'),
             'password' => env('REDIS_PASSWORD'),
             'port' => env('REDIS_PORT', '6379'),
@@ -176,11 +176,13 @@ return [
             'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
             'backoff_base' => env('REDIS_BACKOFF_BASE', 100),
             'backoff_cap' => env('REDIS_BACKOFF_CAP', 1000),
+            // Redis Sentinel configuration for high availability
+            'read_write_timeout' => env('REDIS_READ_WRITE_TIMEOUT', 60),
         ],
 
         'cache' => [
             'url' => env('REDIS_URL'),
-            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'host' => env('REDIS_HOST', 'redis'),
             'username' => env('REDIS_USERNAME'),
             'password' => env('REDIS_PASSWORD'),
             'port' => env('REDIS_PORT', '6379'),
@@ -189,6 +191,23 @@ return [
             'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
             'backoff_base' => env('REDIS_BACKOFF_BASE', 100),
             'backoff_cap' => env('REDIS_BACKOFF_CAP', 1000),
+            // Redis Sentinel configuration for high availability
+            'read_write_timeout' => env('REDIS_READ_WRITE_TIMEOUT', 60),
+        ],
+
+        // Redis Sentinel configuration for automatic failover
+        // Used when REDIS_SENTINEL_SERVICE is set (e.g., mymaster)
+        'sentinel' => [
+            'url' => env('REDIS_URL'),
+            'host' => env('REDIS_SENTINEL_HOST', 'redis-sentinel-1'),
+            'password' => env('REDIS_PASSWORD'),
+            'port' => env('REDIS_SENTINEL_PORT', '26379'),
+            'database' => env('REDIS_DB', '0'),
+            'max_retries' => env('REDIS_MAX_RETRIES', 3),
+            'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
+            'backoff_base' => env('REDIS_BACKOFF_BASE', 100),
+            'backoff_cap' => env('REDIS_BACKOFF_CAP', 1000),
+            'read_write_timeout' => env('REDIS_READ_WRITE_TIMEOUT', 60),
         ],
 
     ],
