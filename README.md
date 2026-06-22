@@ -127,6 +127,95 @@ upstream backend {
 **Решение:** Удалять проблемные директории через `sudo` на хосте или через `vendor/bin/sail root-shell`.
 
 
+## Диагностика кластера
+
+Команды для отладки, когда что-то пошло не так.
+
+### Статус контейнеров
+
+```bash
+# Все контейнеры и их статус
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+# Только PostgreSQL
+docker ps --format "table {{.Names}}\t{{.Status}}" | grep pgsql
+
+# Метрики CPU/RAM всех контейнеров в реальном времени
+docker stats
+```
+
+### Логи
+
+```bash
+# Логи конкретного сервиса
+docker logs high-rps-pg-laravel.test-1 --tail 50
+docker logs high-rps-pg-balancer-1 --tail 50
+docker logs high-rps-pg-pgsql-1 --tail 50
+
+# Следить за логами в реальном времени
+docker logs high-rps-pg-balancer-1 -f
+```
+
+### Проверка сети
+
+```bash
+# Какие контейнеры в сети и их IP
+docker network inspect high-rps-pg_sail \
+  | jq '.[0].Containers | to_entries[] | {name: .value.Name, ip: .value.IPv4Address}'
+
+# DNS-резолв внутри контейнера (сколько IP у laravel.test)
+docker exec high-rps-pg-balancer-1 nslookup laravel.test
+
+# Проверить, что nginx видит живые upstream'ы
+docker exec high-rps-pg-balancer-1 nginx -t
+```
+
+### Сниффинг трафика (tcpdump)
+
+Установка и запуск сниффинга внутри контейнера balancer:
+
+```bash
+# Установить tcpdump (однократно)
+docker exec high-rps-pg-balancer-1 apk add tcpdump
+
+# Смотреть HTTP-трафик между balancer'ом и репликами
+docker exec -it high-rps-pg-balancer-1 tcpdump -i eth0 port 80 -A
+```
+
+Пример вывода — полный путь запроса:
+
+```
+# 1. Входящий запрос от curl через Docker gateway
+172.30.0.1.55696 > balancer:80  →  GET /api/products/1 HTTP/1.1
+
+# 2. Проксирование на одну из реплик
+balancer:51500 > laravel.test-3:80  →  GET /api/products/1 HTTP/1.1
+
+# 3. Ответ от реплики (видно Swoole и hostname)
+HTTP/1.1 200 OK
+Server: swoole-http-server
+{"data":{...,"server":"937bd61227d0"}}
+
+# 4. Ответ клиенту через balancer
+HTTP/1.1 200 OK
+Server: nginx/1.31.1
+```
+
+### Зайти внутрь контейнера
+
+```bash
+# balancer на Alpine (sh)
+docker exec -it high-rps-pg-balancer-1 sh
+
+# Laravel-реплика на Ubuntu (bash)
+docker exec -it high-rps-pg-laravel.test-1 bash
+
+# Проверить процессы внутри
+ps aux | grep octane
+ps aux | grep nginx
+```
+
+
 ## Структура конфигурации
 
 | Файл | Назначение |
